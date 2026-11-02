@@ -1,0 +1,4 @@
+// Network only: never cache membership-dependent pages or association data.
+self.addEventListener('install',()=>self.skipWaiting());
+self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
+self.addEventListener('fetch',event=>{if(event.request.mode==='navigate')event.respondWith(fetch(event.request).catch(()=>new Response('<!doctype html><html lang="fr"><meta name="viewport" content="width=device-width"><title>Lo Ligam · Hors connexion</title><body style="font-family:system-ui;padding:40px;background:#f8f8f2;color:#244d40"><h1>Connexion interrompue</h1><p>Lo Ligam a besoin d’Internet pour accéder aux données partagées. Aucune modification n’a été envoyée.</p><button onclick="location.reload()">Réessayer</button></body></html>',{headers:{'Content-Type':'text/html;charset=utf-8','Cache-Control':'no-store'}})))});
