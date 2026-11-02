@@ -1,3 +1,6 @@
+import {manages,approves,viewsScope,scopes,roleLabels,financeScope} from './permissions.mjs';
+import {financeCommand,financeProjection} from './finance.mjs';
+export {manages,approves};
 export class AppError extends Error {constructor(message,status=422){super(message);this.status=status;}}
 const fail=(m,s=422)=>{throw new AppError(m,s)};
 const text=(v,max=200)=>{if(typeof v!=='string'||!v.trim()||v.length>max)fail('Champ obligatoire ou trop long.');return v.trim()};
@@ -8,20 +11,18 @@ const id=()=>crypto.randomUUID();
 const dated=v=>{if(typeof v!=='string'||!/^\d{4}-\d{2}-\d{2}T/.test(v)||!Number.isFinite(Date.parse(v)))fail('Date invalide.');return new Date(v).toISOString()};
 const integer=(v,min=0,max=100000000)=>Number.isInteger(Number(v))&&Number(v)>=min&&Number(v)<=max?Number(v):fail('Nombre invalide.');
 export const member=(s,u)=>{const m=s.members.find(m=>m.id===u.userId&&m.active);if(!m)fail('Votre accès à cette association n’est pas actif.',403);return m};
-export const manages=(m,c)=>m.role==='admin'||(['referent','member'].includes(m.role)&&m.commission===c);
-export const approves=(m,c)=>m.role==='admin'||(m.role==='referent'&&m.commission===c);
 const admin=m=>{if(m.role!=='admin')fail('Action réservée à l’administration.',403)};
 const requireManage=(m,c)=>{if(!manages(m,c))fail('Action non autorisée dans cette commission.',403)};
 const requireApprove=(m,c)=>{if(!approves(m,c))fail('Validation réservée au référent.',403)};
 const get=(arr,id)=>arr.find(x=>x.id===id)||fail('Élément introuvable.',404);
 const version=(o,c)=>{if(c.version!==(o.version||1))fail('Une autre personne a modifié cet élément. Rechargez avant de recommencer.',409)};
 const writable=e=>{if(['archived','cancelled'].includes(e.status))fail('Cet événement est fermé.',409)};
-export const visibleEvent=(m,e)=>manages(m,e.commission)||(['published','finished'].includes(e.status)&&e.audience==='parents');
+export const visibleEvent=(m,e)=>(viewsScope(m,e.commission)||financeScope(m,e.commission))||(['published','finished'].includes(e.status)&&e.audience==='parents');
 const eventFor=(s,m,eventId)=>{const e=get(s.events,eventId);if(!visibleEvent(m,e))fail('Événement introuvable.',404);return e};
 export function relativeDate(start,offset){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(start));const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));const date=new Date(Date.UTC(+p.year,+p.month-1,+p.day));date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 export function initialState(u){return {name:'Lo Ligam',members:[{id:u.userId,name:u.fullName||'Administrateur',email:u.email.toLowerCase(),role:'admin',commission:'__general',active:true,family:false,budget:false}],commissions:[],events:[],tasks:[],slots:[],registrations:[],communications:[],resources:[],families:[],budget:[],materials:[],invites:[],notifications:[],audit:[],receipts:[],templates:[],defaultsCleared:true};}
 const commission=(s,value)=>value==='__general'?{id:'__general',name:'Sans commission'}:get(s.commissions,value);
-export function project(s,u){const m=member(s,u),events=s.events.filter(e=>visibleEvent(m,e)),eventIds=new Set(events.map(e=>e.id));const managementIds=new Set(events.filter(e=>manages(m,e.commission)).map(e=>e.id));return {name:s.name,defaultsCleared:!!s.defaultsCleared,me:m,commissions:s.commissions,templates:s.templates,events,slots:s.slots.filter(x=>eventIds.has(x.eventId)),registrations:s.registrations.filter(r=>eventIds.has(get(s.slots,r.slotId).eventId)).map(r=>({id:r.id,slotId:r.slotId,userId:r.userId===m.id?r.userId:undefined,mine:r.userId===m.id,name:managementIds.has(get(s.slots,r.slotId).eventId)?get(s.members,r.userId).name:get(s.members,r.userId).name.split(' ')[0]})),tasks:s.tasks.filter(t=>managementIds.has(t.eventId)),communications:s.communications.filter(c=>manages(m,c.commission)),resources:s.resources.filter(r=>r.audience==='parents'||manages(m,r.commission)),families:m.family?s.families:[],budget:m.budget?s.budget.filter(b=>managementIds.has(b.eventId)):[],materials:s.materials.filter(b=>managementIds.has(b.eventId)),members:m.role==='admin'?s.members:[],invites:m.role==='admin'?s.invites.map(({hash,...x})=>x):[],audit:m.role==='admin'?s.audit.slice(-50).reverse():[],notifications:s.notifications.filter(n=>n.userId===m.id).slice(-40).reverse()};}
+export function project(s,u){const m=member(s,u),events=s.events.filter(e=>visibleEvent(m,e)),eventIds=new Set(events.map(e=>e.id));const managementIds=new Set(events.filter(e=>viewsScope(m,e.commission)).map(e=>e.id));return {name:s.name,defaultsCleared:!!s.defaultsCleared,me:m,commissions:s.commissions,templates:s.templates,events,slots:s.slots.filter(x=>eventIds.has(x.eventId)),registrations:s.registrations.filter(r=>eventIds.has(get(s.slots,r.slotId).eventId)).map(r=>({id:r.id,slotId:r.slotId,userId:r.userId===m.id?r.userId:undefined,mine:r.userId===m.id,name:managementIds.has(get(s.slots,r.slotId).eventId)?get(s.members,r.userId).name:get(s.members,r.userId).name.split(' ')[0]})),tasks:s.tasks.filter(t=>managementIds.has(t.eventId)),communications:s.communications.filter(c=>viewsScope(m,c.commission)),resources:s.resources.filter(r=>r.audience==='parents'||viewsScope(m,r.commission)),families:m.family?s.families:[],...financeProjection(s,m),directory:s.members.filter(x=>x.active).map(x=>({id:x.id,name:x.name,role:x.role,commissions:scopes(x)})),materials:s.materials.filter(b=>managementIds.has(b.eventId)),members:m.role==='admin'?s.members:[],invites:m.role==='admin'?s.invites.map(({hash,...x})=>x):[],audit:m.role==='admin'?s.audit.slice(-50).reverse():[],notifications:s.notifications.filter(n=>n.userId===m.id).slice(-40).reverse()};}
 function notify(s,userId,message){s.notifications.push({id:id(),userId,message,date:stamp()})}
 export function apply(original,u,c){const s=structuredClone(original);const m=member(s,u);if(s.receipts.some(x=>x.id===c.requestId&&x.user===u.userId))return {state:s,replayed:true};text(c.requestId,100);const p=c.payload||{};let result={};
 if(c.type==='event.create'){requireManage(m,p.commission);commission(s,p.commission);const start=dated(p.start),end=dated(p.end);if(end<=start)fail('La fin doit suivre le début.');const e={id:id(),title:text(p.title),start,end,location:text(p.location),commission:p.commission,audience:'parents',status:'draft',description:optional(p.description),report:'',version:1,owner:m.id};s.events.push(e);if(p.template){const t=get(s.templates,p.template);t.tasks.forEach((title,i)=>s.tasks.push({id:id(),eventId:e.id,title,due:relativeDate(start,t.offsets[i]||0),status:'todo',owner:'',reason:'',version:1}));}result={id:e.id};}
@@ -37,11 +38,26 @@ else if(c.type.startsWith('communication.')){const co=get(s.communications,c.id)
 else if(c.type==='resource.create'){requireManage(m,p.commission);commission(s,p.commission);const url=optional(p.url,2000);if(url&&!/^https:\/\//i.test(url))fail('Le lien doit commencer par https://');s.resources.push({id:id(),title:text(p.title),category:choice(p.category,['Accueil','Événements','Communication','Procédures','Passation']),commission:p.commission,audience:choice(p.audience,['commission','parents']),body:optional(p.body,10000),url,version:1,owner:m.id,date:stamp()});}
 else if(c.type==='material.create'){const e=eventFor(s,m,p.eventId);requireManage(m,e.commission);writable(e);s.materials.push({id:id(),eventId:e.id,title:text(p.title),needed:integer(p.needed,1,10000),confirmed:0,returned:false,version:1});}
 else if(c.type==='material.update'){const x=get(s.materials,c.id),e=eventFor(s,m,x.eventId);requireManage(m,e.commission);writable(e);version(x,c);x.confirmed=integer(p.confirmed,0,x.needed);x.returned=!!p.returned;x.version++;}
-else if(c.type==='budget.create'){if(!m.budget)fail('Habilitation budget requise.',403);const e=eventFor(s,m,p.eventId);requireManage(m,e.commission);writable(e);s.budget.push({id:id(),eventId:e.id,title:text(p.title),kind:choice(p.kind,['expense','income']),planned:integer(p.planned),actual:p.actual===''||p.actual===null?null:integer(p.actual),version:1});}
+else if(c.type.startsWith('finance.')||c.type.startsWith('reimbursement.')||c.type==='budget.create'){result=financeCommand(s,m,c,{fail,text,optional,integer,choice,version,get,id,stamp,notify,viewsScope});}
 else if(c.type==='family.create'){if(!m.family)fail('Habilitation accueil confidentiel requise.',403);const contact=text(p.contact,150);if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)&&!/^[+\d ().-]{8,25}$/.test(contact))fail('Saisissez un email ou téléphone valide.');s.families.push({id:id(),name:text(p.name,100),contact,stage:'Demande reçue',next:optional(p.next,10),owner:m.id,version:1});}
 else if(c.type==='family.update'){if(!m.family)fail('Habilitation accueil confidentiel requise.',403);const f=get(s.families,c.id);version(f,c);f.stage=choice(p.stage,['Demande reçue','Contact pris','Visite prévue','Informations transmises','Accueil réalisé','Sans suite']);f.version++;}
-else if(c.type==='invite.create'){admin(m);const email=text(p.email,200).toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail('Email invalide.');commission(s,p.commission);s.invites.push({id:id(),email,role:choice(p.role,['parent','member','referent']),commission:p.commission,hash:text(p.hash,64),expires:new Date(Date.now()+7*86400000).toISOString(),used:false});}
-else if(c.type==='member.update'){admin(m);const target=get(s.members,c.id);if(target.id===m.id)fail('Votre propre accès ne peut pas être modifié ici.');target.active=!!p.active;target.role=choice(p.role,['parent','member','referent','admin']);target.family=!!p.family;target.budget=!!p.budget;commission(s,p.commission);target.commission=p.commission;notify(s,m.id,'Les habilitations d’un membre ont été modifiées et journalisées.');}
+else if(c.type==='invite.create'){admin(m);const email=text(p.email,200).toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail('Email invalide.');commission(s,p.commission);s.invites.push({id:id(),email,role:choice(p.role,['parent','member','referent','board','treasurer']),commission:p.commission,hash:text(p.hash,64),expires:new Date(Date.now()+7*86400000).toISOString(),used:false});}
+else if(c.type==='member.update'){
+ admin(m);const target=get(s.members,c.id);version(target,c);
+ const role=choice(p.role,Object.keys(roleLabels)),active=!!p.active;
+ if(target.role==='admin'&&target.active&&(!active||role!=='admin')&&s.members.filter(x=>x.active&&x.role==='admin').length<=1)fail('Le dernier administrateur actif doit être conservé.',409);
+ const list=Array.isArray(p.commissions)?[...new Set(p.commissions)]:[p.commission||target.commission||'__general'];if(list.length>30)fail('Trop de commissions.');for(const x of list)if(!scopes(target).includes(x))commission(s,x);
+ if(['referent','member'].includes(role)&&!list.length)fail('Sélectionnez au moins une commission.');
+ const before={role:target.role,active:target.active,commissions:scopes(target),family:target.family,budget:target.budget,permissions:target.permissions};
+ target.role=role;target.active=active;target.commissions=list;target.commission=list[0]||'__general';target.family=!!p.family;target.budget=!!p.budget;
+ target.permissions={edit:p.permissions?.edit!==false,approve:p.permissions?.approve!==false,financeEdit:p.permissions?.financeEdit!==false,financeApprove:!!p.permissions?.financeApprove};target.version=(target.version||1)+1;
+ s.audit.push({id:id(),actor:m.name,action:'Habilitations de '+target.name,date:stamp(),before,after:{role,active,commissions:list,family:target.family,budget:target.budget,permissions:target.permissions}});notify(s,target.id,'Vos habilitations ont été mises à jour.');
+}
+else if(c.type==='task.assign'){
+ const t=get(s.tasks,c.id),e=eventFor(s,m,t.eventId);requireApprove(m,e.commission);writable(e);version(t,c);
+ if(p.owner){const target=get(s.members,p.owner);if(!target.active||!viewsScope(target,e.commission))fail('Choisissez un membre actif de ce périmètre.');notify(s,target.id,'Une tâche vous a été confiée : '+t.title);}
+ t.owner=p.owner||'';t.version++;
+}
 else if(c.type==='commission.create'){admin(m);s.commissions.push({id:id(),name:text(p.name,80),version:1});}
 else if(c.type==='settings.update'){admin(m);s.name=text(p.name,80);}
 else if(c.type==='template.create'){admin(m);const tasks=text(p.tasks,3000).split('\n').map(x=>x.trim()).filter(Boolean);s.templates.push({id:id(),name:text(p.name,80),tasks,offsets:tasks.map(()=>-7),version:1});}
@@ -80,7 +96,7 @@ else if(c.type==='notification.read'){
 }
 else if(c.type==='invite.revoke'){admin(m);const inv=get(s.invites,c.id);inv.revoked=true;}
 else if(c.type==='resource.favorite'){
- const r=get(s.resources,c.id);if(r.audience!=='parents'&&!manages(m,r.commission))fail('Ressource introuvable.',404);
+ const r=get(s.resources,c.id);if(r.audience!=='parents'&&!viewsScope(m,r.commission))fail('Ressource introuvable.',404);
  m.favorites=m.favorites||[];m.favorites=m.favorites.includes(r.id)?m.favorites.filter(x=>x!==r.id):[...m.favorites,r.id];
 }
 else if(c.type==='resource.update'){
@@ -92,7 +108,7 @@ else if(c.type==='resource.update'){
 else if(c.type==='commission.rename'){admin(m);const x=get(s.commissions,c.id);version(x,c);x.name=text(p.name,80);x.version=(x.version||1)+1;}
 else if(c.type==='commission.remove'){
  admin(m);get(s.commissions,c.id);
- if(s.members.some(x=>x.active&&x.role!=='admin'&&x.commission===c.id)||s.events.some(x=>x.commission===c.id)||s.communications.some(x=>x.commission===c.id)||s.resources.some(x=>x.commission===c.id)||s.invites.some(x=>!x.used&&!x.revoked&&x.commission===c.id))fail('Cette commission est utilisée. Retirez ou réaffectez ses éléments avant suppression.',409);
+ if(s.members.some(x=>x.active&&x.role!=='admin'&&scopes(x).includes(c.id))||s.events.some(x=>x.commission===c.id)||s.budget.some(x=>x.commission===c.id)||(s.budgetLimits||[]).some(x=>x.commission===c.id)||s.communications.some(x=>x.commission===c.id)||s.resources.some(x=>x.commission===c.id)||s.invites.some(x=>!x.used&&!x.revoked&&x.commission===c.id))fail('Cette commission est utilisée. Retirez ou réaffectez ses éléments avant suppression.',409);
  s.commissions=s.commissions.filter(x=>x.id!==c.id);
 }
 else if(c.type==='template.update'){
@@ -102,5 +118,5 @@ else if(c.type==='template.update'){
 else if(c.type==='template.remove'){admin(m);get(s.templates,c.id);s.templates=s.templates.filter(x=>x.id!==c.id);}
 else if(c.type==='export'){requireApprove(m,m.commission);result={export:project(s,u)};}
 else fail('Commande inconnue.');
-s.audit.push({id:id(),actor:m.name,action:c.type,date:stamp()});s.receipts.push({id:c.requestId,user:u.userId});s.receipts=s.receipts.slice(-500);if(JSON.stringify(s).length>3000000)fail('Limite de ce pilote atteinte. Exportez et contactez l’administrateur.',409);return {state:s,result};}
-export function acceptInvite(original,u,hash){const s=structuredClone(original);const invite=s.invites.find(i=>i.hash===hash&&!i.used&&!i.revoked&&i.email===u.email.toLowerCase()&&Date.parse(i.expires)>Date.now());if(!invite)fail('Invitation expirée, déjà utilisée ou associée à un autre email.',403);if(s.members.some(m=>m.id===u.userId))fail('Ce compte possède déjà un accès. Contactez un administrateur.',409);s.members.push({id:u.userId,email:u.email.toLowerCase(),name:u.fullName||u.email.split('@')[0],role:invite.role,commission:invite.commission,active:true,family:false,budget:false});invite.used=true;s.audit.push({id:id(),actor:u.fullName||u.userId,action:'Invitation acceptée',date:stamp()});return s;}
+s.audit.push({id:id(),actor:m.name,action:c.type,date:stamp(),...(c.type==='finance.year'?{year:String(p.year),closed:!!p.closed,reason:optional(p.reason,500)}:{})});s.receipts.push({id:c.requestId,user:u.userId});s.receipts=s.receipts.slice(-500);if(JSON.stringify(s).length>3000000)fail('Limite de ce pilote atteinte. Exportez et contactez l’administrateur.',409);return {state:s,result};}
+export function acceptInvite(original,u,hash){const s=structuredClone(original);const invite=s.invites.find(i=>i.hash===hash&&!i.used&&!i.revoked&&i.email===u.email.toLowerCase()&&Date.parse(i.expires)>Date.now());if(!invite)fail('Invitation expirée, déjà utilisée ou associée à un autre email.',403);if(s.members.some(m=>m.id===u.userId))fail('Ce compte possède déjà un accès. Contactez un administrateur.',409);s.members.push({id:u.userId,email:u.email.toLowerCase(),name:u.fullName||u.email.split('@')[0],role:invite.role,commission:invite.commission,active:true,family:false,budget:invite.role==='treasurer',version:1});invite.used=true;s.audit.push({id:id(),actor:u.fullName||u.userId,action:'Invitation acceptée',date:stamp()});return s;}

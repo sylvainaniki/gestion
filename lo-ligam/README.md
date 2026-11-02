@@ -1,3 +1,19 @@
+# Mise à jour 0.3 · membres, droits et finances
+
+- Six rôles : administrateur, bureau, trésorier, référent, membre et bénévole. Plusieurs commissions par membre, mode lecture seule, validation opérationnelle, habilitations séparées contacts/budget et saisie/validation financière.
+- Écran Membres & finances, disponible aussi depuis le profil mobile : fiches membres, droits personnels, journal avant/après. Protection du dernier administrateur, désactivation sans perte historique, contrôle de version des habilitations.
+- Pour ouvrir le budget : l’administrateur active « Accéder au budget » sur sa propre fiche. Aucun droit sensible existant n’est élargi automatiquement.
+- Recettes et dépenses en centimes, prévisionnel/réalisé, catégories, dates/échéances, bénéficiaire, notes et liens justificatifs HTTPS. Fonctionnement général ou événement. Recherche et filtres par exercice, événement et statut, export CSV protégé contre l’injection de formules.
+- Circuit brouillon → à valider → validé → réglé, refus motivé et annulation historisée. Validation et paiement réservés aux habilités ; montant figé après validation, conflits de version refusés.
+- Remboursements accessibles à tous les membres : demandes personnelles, correction/retrait avant validation, suivi privé, validation obligatoirement par une autre personne, notifications.
+- Synthèse annuelle par catégorie et événement, solde prévu/réel/règlements, alertes de dépassement et échéances, plafonds annuels par commission, clôture/réouverture motivée des exercices.
+- Attribution des tâches aux membres actifs du périmètre avec notification.
+- 34 tests métier, dont concurrence sur les inscriptions, accès financiers, versions, remboursements, clôtures et protection du dernier administrateur.
+
+## Limites explicites
+
+Les règlements sont déclarés manuellement : aucun virement ni connexion bancaire. Les justificatifs sont des liens vers un stockage externe dont les droits restent à gérer ; aucun dépôt de fichiers privés n’est fourni. Les sommes suivent la date de l’opération, pas une comptabilité réglementaire ni un rapprochement bancaire. Les montants réels non renseignés sont exclus des totaux. Les plafonds produisent des alertes sans blocage. L’hébergement et la connexion restent liés à ChatGPT. Emails automatiques et restauration administrateur restent hors de cette version.
+
 # Mise à jour 0.2 · configuration libre et outils de suivi
 
 - Aucun modèle ni commission préremplis pour les nouveaux espaces. Pour cet espace existant, la commande administrateur `settings.cleanDefaults` retire uniquement les identifiants et libellés des préremplissages d’origine. Elle conserve les événements, tâches, membres et périmètres historiques. Les éléments personnalisés ne sont pas retirés.
@@ -31,7 +47,7 @@ Pour chaque autre adulte :
 1. Autoriser son email dans le partage Sites du projet, sans lui donner le rôle d’éditeur du code.
 2. Dans Lo Ligam → Administration, créer une invitation avec cet email, son rôle et sa commission.
 3. Transmettre manuellement le lien personnel affiché. L’invité ouvre le lien, se connecte avec le compte ChatGPT correspondant et clique « Accepter mon invitation ».
-4. Les habilitations confidentielles sont attribuées séparément par l’administrateur et journalisées. Un administrateur ne peut pas modifier ses propres droits dans cette interface.
+4. Les habilitations confidentielles sont attribuées séparément par l’administrateur et journalisées. Un administrateur peut ajuster ses habilitations ; le dernier administrateur actif ne peut pas être désactivé ou rétrogradé.
 
 Sur mobile, l’administration et l’installation se trouvent dans le bouton de profil en haut à droite. Le partage Sites et l’invitation applicative constituent deux contrôles distincts. Sans les deux, la personne ne voit aucune donnée.
 
