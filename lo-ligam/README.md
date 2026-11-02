@@ -1,4 +1,14 @@
-# Lo Ligam · version pilote 0.1
+# Mise à jour 0.2 · configuration libre et outils de suivi
+
+- Aucun modèle ni commission préremplis pour les nouveaux espaces. Pour cet espace existant, la commande administrateur `settings.cleanDefaults` retire uniquement les identifiants et libellés des préremplissages d’origine. Elle conserve les événements, tâches, membres et périmètres historiques. Les éléments personnalisés ne sont pas retirés.
+- Outils & suivi : agenda mensuel, sélection d’un jour, export ICS (import ponctuel, pas d’abonnement synchronisé), recherche dans le périmètre autorisé, tableau de tâches en quatre colonnes, filtres mes tâches/en retard/bloquées/priorité haute.
+- Tâches : titre, échéance, priorité ; ressources : favoris personnels côté serveur, modification avec contrôle de version et historique.
+- Événements : titre, lieu et description modifiables, horaires modifiables seulement sans créneau. Duplication limitée aux intitulés de tâches et besoins matériels ; aucune inscription, personne, dépense ou communication n’est copiée ; échéances de copie à J−7.
+- Commissions et modèles : renommer/modifier/retirer ; la suppression d’une commission utilisée est refusée. Les événements existants ne dépendent pas des modèles après leur création.
+- Invitations : statuts acceptée/expirée/en attente/révoquée, révocation immédiate. Notifications : marquer comme lues.
+- 21 tests métier automatisés. Les limites de production ci-dessous restent applicables.
+
+# Lo Ligam · version pilote 0.2
 
 Application de coordination associative inspirée du dossier COAC du 2 novembre 2026. Projet distinct de Dossier Clair.
 
@@ -55,4 +65,4 @@ Les tests couvrent les refus de rôle, non-membre, commission, capacité concurr
 
 ## Sauvegarde, restauration et incident
 
-Avant un pilote réel, définir un responsable et une rétention, obtenir une sauvegarde D1 via le fournisseur d’hébergement, restaurer dans un environnement de recette séparé et rejouer les tests d’accès avant réouverture. À ce stade, ce runbook n’a pas été exécuté en production. En cas d’accès compromis : retirer le partage Sites, désactiver le membre dans l’application, préserver le journal et investiguer. Les invitations non utilisées expirent après sept jours ; révocation manuelle d’une invitation encore à ajouter.
+Avant un pilote réel, définir un responsable et une rétention, obtenir une sauvegarde D1 via le fournisseur d’hébergement, restaurer dans un environnement de recette séparé et rejouer les tests d’accès avant réouverture. À ce stade, ce runbook n’a pas été exécuté en production. En cas d’accès compromis : retirer le partage Sites, désactiver le membre dans l’application, préserver le journal et investiguer. Les invitations non utilisées expirent après sept jours ; révocation immédiate disponible dans Outils & suivi → Invitations.
